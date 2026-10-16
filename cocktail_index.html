@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カクテル管理アプリ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans" x-data="cocktailApp()">
+
+    <!-- ヘッダー -->
+    <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-500 text-slate-900 p-2.5 rounded-xl font-bold text-xl shadow">
+                    <i class="fa-solid fa-martini-glass-citrus"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider text-amber-400">Bar Cocktail Manager</h1>
+                    <p class="text-xs text-slate-400">スマホ・タブレット・PC対応カクテルデータベース</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button @click="openAddModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-4 py-2 rounded-lg text-sm transition shadow flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> 新規登録
+                </button>
+                <button @click="exportData()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg text-sm transition" title="データ出力">
+                    <i class="fa-solid fa-download"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+        <!-- 検索・フィルターセクション -->
+        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- キーワード検索 -->
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                        <i class="fa-solid fa-search"></i>
+                    </span>
+                    <input type="text" x-model="searchQuery" placeholder="カクテル名、材料、言葉で検索..." 
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition">
+                </div>
+
+                <!-- ベース絞り込み -->
+                <div>
+                    <select x-model="selectedBase" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition">
+                        <option value="">すべてのベース</option>
+                        <template x-for="base in baseList" :key="base">
+                            <option x-text="base" :value="base"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- 味わい絞り込み -->
+                <div>
+                    <select x-model="selectedTaste" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-500 transition">
+                        <option value="">すべての味わい</option>
+                        <template x-for="taste in tasteList" :key="taste">
+                            <option x-text="taste" :value="taste"></option>
+                        </template>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 件数表示・リセット -->
+            <div class="flex justify-between items-center text-xs text-slate-400 pt-2 border-t border-slate-700/50">
+                <span>登録件数: <strong class="text-amber-400" x-text="filteredCocktails.length"></strong>件（全 <span x-text="cocktails.length"></span> 件）</span>
+                <button @click="resetFilters()" class="hover:text-amber-400 underline transition">条件をクリア</button>
+            </div>
+        </div>
+
+        <!-- カクテルカード一覧 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <template x-for="cocktail in filteredCocktails" :key="cocktail.カクテルID">
+                <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-lg hover:border-amber-500/50 transition flex flex-col justify-between">
+                    <div class="p-5 space-y-3">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20" x-text="cocktail.ベース"></span>
+                                <h3 class="text-lg font-bold text-slate-100 mt-2" x-text="cocktail.カクテル名"></h3>
+                            </div>
+                            <span class="text-xs text-slate-400 font-mono" x-text="'ID:' + cocktail.カクテルID"></span>
+                        </div>
+
+                        <div class="space-y-1.5 text-xs text-slate-300">
+                            <p class="line-clamp-1"><strong class="text-slate-400">材料:</strong> <span x-text="cocktail.その他の材料"></span></p>
+                            <p><strong class="text-slate-400">技法:</strong> <span x-text="cocktail.技法"></span> / <strong class="text-slate-400">度数:</strong> <span x-text="cocktail['度数(%)']"></span></p>
+                            <p class="italic text-amber-300/90 line-clamp-1"><strong class="not-italic text-slate-400">言葉:</strong> 「<span x-text="cocktail.カクテル言葉"></span>」</p>
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-3 bg-slate-800/80 border-t border-slate-700/60 flex justify-between items-center">
+                        <span class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded" x-text="cocktail.味わい"></span>
+                        <div class="flex gap-2">
+                            <button @click="openDetail(cocktail)" class="text-xs bg-amber-500/20 hover:bg-amber-500 hover:text-slate-900 text-amber-400 font-bold px-3 py-1.5 rounded-lg transition">
+                                詳細
+                            </button>
+                            <button @click="deleteCocktail(cocktail.カクテルID)" class="text-xs bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 px-2.5 py-1.5 rounded-lg transition" title="削除">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- 該当なしの場合 -->
+        <template x-if="filteredCocktails.length === 0">
+            <div class="text-center py-16 bg-slate-800/50 rounded-2xl border border-slate-700">
+                <i class="fa-solid fa-wine-glass-empty text-4xl text-slate-500 mb-3"></i>
+                <p class="text-slate-400 text-sm">条件に一致するカクテルが見つかりませんでした。</p>
+            </div>
+        </template>
+    </main>
+
+    <!-- 詳細モーダル -->
+    <div x-show="detailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="display: none;">
+        <template x-if="activeCocktail">
+            <div class="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden space-y-6 p-6 relative">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20" x-text="activeCocktail.ベース"></span>
+                        <h2 class="text-2xl font-bold text-slate-100 mt-2" x-text="activeCocktail.カクテル名"></h2>
+                    </div>
+                    <button @click="detailModal = false" class="text-slate-400 hover:text-slate-100 p-2"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <div class="space-y-4 text-sm">
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-700/60 space-y-2">
+                        <p><strong class="text-slate-400">レシピ:</strong> <span class="text-amber-300 font-medium" x-text="activeCocktail.レシピ"></span></p>
+                        <p><strong class="text-slate-400">その他の材料:</strong> <span x-text="activeCocktail.その他の材料"></span></p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700/60">
+                            <span class="text-xs text-slate-400 block">技法</span>
+                            <span class="font-bold" x-text="activeCocktail.技法"></span>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700/60">
+                            <span class="text-xs text-slate-400 block">アルコール度数</span>
+                            <span class="font-bold text-amber-400" x-text="activeCocktail['度数(%)']"></span>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700/60">
+                            <span class="text-xs text-slate-400 block">完成時の色</span>
+                            <span class="font-bold" x-text="activeCocktail.完成時の色"></span>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700/60">
+                            <span class="text-xs text-slate-400 block">味わい</span>
+                            <span class="font-bold" x-text="activeCocktail.味わい"></span>
+                        </div>
+                    </div>
+
+                    <div class="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl text-center">
+                        <span class="text-xs text-amber-400 block mb-1">カクテル言葉</span>
+                        <span class="text-base font-bold italic text-amber-200" x-text="'「' + activeCocktail.カクテル言葉 + '」'"></span>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    <button @click="detailModal = false" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-5 py-2 rounded-xl text-sm font-bold transition">閉じる</button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- 新規登録モーダル -->
+    <div x-show="addModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" style="display: none;">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-amber-400">新規カクテル登録</h2>
+                <button @click="addModal = false" class="text-slate-400 hover:text-slate-100 p-2"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <form @submit.prevent="saveCocktail()" class="space-y-4 text-sm">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">カクテル名 *</label>
+                    <input type="text" x-model="form.カクテル名" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">ベース *</label>
+                        <input type="text" x-model="form.ベース" required placeholder="例: ジン, ラム" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">アルコール度数 *</label>
+                        <input type="text" x-model="form['度数(%)']" required placeholder="例: 5%" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">その他の材料</label>
+                    <input type="text" x-model="form.その他の材料" placeholder="例: トニックウォーター、ライム" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">技法</label>
+                        <input type="text" x-model="form.技法" placeholder="例: ビルド、シェーク" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">完成時の色</label>
+                        <input type="text" x-model="form.完成時の色" placeholder="例: 無色透明、緑" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">レシピ</label>
+                    <textarea x-model="form.レシピ" rows="2" placeholder="例: ジン45ml、トニック適量..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">味わい</label>
+                        <input type="text" x-model="form.味わい" placeholder="例: さっぱり、辛口" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">カクテル言葉</label>
+                        <input type="text" x-model="form.カクテル言葉" placeholder="例: いつも希望を捨てないで" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" @click="addModal = false" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-xl text-sm transition">キャンセル</button>
+                    <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-5 py-2 rounded-xl text-sm transition">登録する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- アプリのロジック -->
+    <script>
+        function cocktailApp() {
+            return {
+                searchQuery: '',
+                selectedBase: '',
+                selectedTaste: '',
+                detailModal: false,
+                addModal: false,
+                activeCocktail: null,
+                
+                form: {
+                    カクテル名: '',
+                    ベース: '',
+                    その他の材料: '',
+                    技法: '',
+                    レシピ: '',
+                    完成時の色: '',
+                    カクテル言葉: '',
+                    味わい: '',
+                    '度数(%)': ''
+                },
+
+                // 初期データ（提供された4つのカクテル）
+                defaultCocktails: [
+                    { カクテルID: "1", カクテル名: "ジントニック", ベース: "ジン", その他の材料: "トニックウォーター、ライム", 技法: "ビルド", レシピ: "ジン45ml、トニック適量、ライム1/6個", 完成時の色: "無色透明", カクテル言葉: "いつも希望を捨てないで", 味わい: "さっぱり", "度数(%)": "5%" },
+                    { カクテルID: "2", カクテル名: "モヒート", ベース: "ラム", その他の材料: "ミント、ライム、砂糖、ソーダ", 技法: "ビルド", レシピ: "ラム45ml、ミント適量、ライム1/2個、砂糖2tsp、ソーダ適量", 完成時の色: "緑", カクテル言葉: "心の渇きを癒して", 味わい: "さっぱり、甘み", "度数(%)": "6%" },
+                    { カクテルID: "3", カクテル名: "マティーニ", ベース: "ジン", その他の材料: "ドライベルモット、オリーブ", 技法: "ステア", レシピ: "ジン45ml、ドライベルモット15ml、オリーブ1個", 完成時の色: "無色透明", カクテル言葉: "知的な愛", 味わい: "辛口", "度数(%)": "30%" },
+                    { カクテルID: "4", カクテル名: "マルガリータ", ベース: "テキーラ", その他の材料: "ホワイトキュラソー、ライムジュース", 技法: "シェーク", レシピ: "テキーラ30ml、ホワイトキュラソー15ml、ライムジュース15ml、塩適量", 完成時の色: "白濁", カクテル言葉: "無言の愛", 味わい: "酸味、塩味", "度数(%)": "25%" }
+                ],
+
+                cocktails: [],
+
+                init() {
+                    const saved = localStorage.getItem('cocktails_data');
+                    if (saved) {
+                        try {
+                            this.cocktails = JSON.parse(saved);
+                        } catch (e) {
+                            this.cocktails = [...this.defaultCocktails];
+                        }
+                    } else {
+                        this.cocktails = [...this.defaultCocktails];
+                    }
+                },
+
+                saveToStorage() {
+                    localStorage.setItem('cocktails_data', JSON.stringify(this.cocktails));
+                },
+
+                get baseList() {
+                    return [...new Set(this.cocktails.map(c => c.ベース))].filter(Boolean);
+                },
+
+                get tasteList() {
+                    let tastes = new Set();
+                    this.cocktails.forEach(c => {
+                        if (c.味わい) {
+                            c.味わい.split('、').forEach(t => tastes.add(t.trim()));
+                        }
+                    });
+                    return [...tastes];
+                },
+
+                get filteredCocktails() {
+                    return this.cocktails.filter(c => {
+                        const matchesSearch = this.searchQuery === '' || 
+                            c.カクテル名.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                            (c.その他の材料 && c.その他の材料.toLowerCase().includes(this.searchQuery.toLowerCase())) ||
+                            (c.カクテル言葉 && c.カクテル言葉.toLowerCase().includes(this.searchQuery.toLowerCase()));
+                        
+                        const matchesBase = this.selectedBase === '' || c.ベース === this.selectedBase;
+                        const matchesTaste = this.selectedTaste === '' || (c.味わい && c.味わい.includes(this.selectedTaste));
+
+                        return matchesSearch && matchesBase && matchesTaste;
+                    });
+                },
+
+                resetFilters() {
+                    this.searchQuery = '';
+                    this.selectedBase = '';
+                    this.selectedTaste = '';
+                },
+
+                openDetail(cocktail) {
+                    this.activeCocktail = cocktail;
+                    this.detailModal = true;
+                },
+
+                openAddModal() {
+                    this.form = { カクテル名: '', ベース: '', その他の材料: '', 技法: '', レシピ: '', 完成時の色: '', カクテル言葉: '', 味わい: '', '度数(%)': '' };
+                    this.addModal = true;
+                },
+
+                saveCocktail() {
+                    const newId = String(Math.max(...this.cocktails.map(c => parseInt(c.カクテルID) || 0), 0) + 1).padStart(4, '0');
+                    const newCocktail = { ...this.form, カクテルID: newId };
+                    this.cocktails.push(newCocktail);
+                    this.saveToStorage();
+                    this.addModal = false;
+                },
+
+                deleteCocktail(id) {
+                    if (confirm('このカクテルを削除しますか？')) {
+                        this.cocktails = this.cocktails.filter(c => c.カクテルID !== id);
+                        this.saveToStorage();
+                    }
+                },
+
+                exportData() {
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.cocktails, null, 2));
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.setAttribute("href", dataStr);
+                    downloadAnchor.setAttribute("download", "cocktails_backup.json");
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    downloadAnchor.remove();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
